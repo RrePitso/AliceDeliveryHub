@@ -3,8 +3,47 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertVendorSchema, insertMenuItemSchema, insertOrderSchema, insertDriverSchema } from "@shared/schema";
+const validRoles = ["customer", "vendor", "driver", "admin"];
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get('/api/login/callback', isAuthenticated, async (req: any, res) => {
+  // If you use Replit OIDC, check if this is a new user, then assign role
+  const userId = req.user.claims.sub;
+  let user = await storage.getUser(userId);
+
+  // If new user, set role from query param or localStorage/session
+  if (!user) {
+    // Retrieve from query or session (on real OIDC, use req.query.role or a session)
+    let selectedRole = req.query.role;
+    if (!validRoles.includes(selectedRole)) selectedRole = "customer";
+    user = await storage.createUser({ id: userId, role: selectedRole /* ...other defaults */ });
+  }
+
+  // Redirect based on role
+  switch (user.role) {
+    case "vendor":
+      return res.redirect("/vendor-dashboard");
+    case "driver":
+      return res.redirect("/driver-dashboard");
+    case "admin":
+      return res.redirect("/admin-dashboard");
+    default:
+      return res.redirect("/customer-dashboard");
+  }
+});
+
+// If you have a custom /api/signup endpoint, update as follows:
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { role, ...userData } = req.body;
+    const userRole = validRoles.includes(role) ? role : "customer";
+    const user = await storage.createUser({ ...userData, role: userRole });
+    res.json(user);
+  } catch (error) {
+    res.status(400).json({ error: "Signup failed" });
+  }
+});
+  
   // Auth middleware
   await setupAuth(app);
 
