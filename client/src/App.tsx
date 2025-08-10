@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { CartProvider } from "@/components/customer/cart-context";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import CustomerDashboard from "@/pages/customer-dashboard";
@@ -27,12 +28,12 @@ function Router() {
       {!isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
-        <>
-          {user?.role === "customer" && <Route path="/" component={CustomerDashboard} />}
-          {user?.role === "vendor" && <Route path="/" component={VendorDashboard} />}
-          {user?.role === "driver" && <Route path="/" component={DriverDashboard} />}
-          {user?.role === "admin" && <Route path="/" component={AdminDashboard} />}
-        </>
+        <CartProvider>
+          <Route path="/" component={CustomerDashboard} />
+          <Route path="/vendor" component={VendorDashboard} />
+          <Route path="/driver" component={DriverDashboard} />
+          <Route path="/admin" component={AdminDashboard} />
+        </CartProvider>
       )}
       <Route component={NotFound} />
     </Switch>

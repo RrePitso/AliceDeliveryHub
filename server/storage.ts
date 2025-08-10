@@ -39,21 +39,22 @@ export interface IStorage {
   // Order operations
   createOrder(order: InsertOrder): Promise<Order>;
   getOrder(id: string): Promise<Order | undefined>;
-  getOrdersByCustomer(customerId: string): Promise<Order[]>;
-  getOrdersByVendor(vendorId: string): Promise<Order[]>;
-  getOrdersByDriver(driverId: string): Promise<Order[]>;
+  getCustomerOrders(customerId: string): Promise<Order[]>;
+  getVendorOrders(vendorId: string): Promise<Order[]>;
+  getDriverOrders(driverId: string): Promise<Order[]>;
   getUnassignedOrders(): Promise<Order[]>;
-  updateOrderStatus(id: string, status: string, driverId?: string): Promise<Order>;
+  updateOrderStatus(id: string, status: string): Promise<Order>;
+  assignDriver(orderId: string, driverId: string): Promise<Order>;
   
   // Driver operations
   createDriver(driver: InsertDriver): Promise<Driver>;
   getDriver(id: string): Promise<Driver | undefined>;
   getDriverByUserId(userId: string): Promise<Driver | undefined>;
   getAvailableDrivers(): Promise<Driver[]>;
-  updateDriverStatus(userId: string, isOnline: boolean): Promise<Driver>;
+  updateDriverOnlineStatus(userId: string, isOnline: boolean): Promise<Driver>;
   
   // Analytics
-  getSystemStats(): Promise<{
+  getAdminStats(): Promise<{
     totalUsers: number;
     activeVendors: number;
     activeDrivers: number;
@@ -149,7 +150,7 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
-  async getOrdersByCustomer(customerId: string): Promise<Order[]> {
+  async getCustomerOrders(customerId: string): Promise<Order[]> {
     return await db
       .select()
       .from(orders)
@@ -157,7 +158,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(orders.createdAt));
   }
 
-  async getOrdersByVendor(vendorId: string): Promise<Order[]> {
+  async getVendorOrders(vendorId: string): Promise<Order[]> {
     return await db
       .select()
       .from(orders)
@@ -165,7 +166,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(orders.createdAt));
   }
 
-  async getOrdersByDriver(driverId: string): Promise<Order[]> {
+  async getDriverOrders(driverId: string): Promise<Order[]> {
     return await db
       .select()
       .from(orders)
@@ -177,20 +178,24 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(orders)
-      .where(eq(orders.status, "ready"))
+      .where(orders.driverId == null)
       .orderBy(desc(orders.createdAt));
   }
 
-  async updateOrderStatus(id: string, status: string, driverId?: string): Promise<Order> {
-    const updateData: any = { status, updatedAt: new Date() };
-    if (driverId) {
-      updateData.driverId = driverId;
-    }
-    
+  async updateOrderStatus(id: string, status: string): Promise<Order> {
     const [updatedOrder] = await db
       .update(orders)
-      .set(updateData)
+      .set({ status: status as any, updatedAt: new Date() })
       .where(eq(orders.id, id))
+      .returning();
+    return updatedOrder;
+  }
+
+  async assignDriver(orderId: string, driverId: string): Promise<Order> {
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({ driverId, status: 'picked_up' as any, updatedAt: new Date() })
+      .where(eq(orders.id, orderId))
       .returning();
     return updatedOrder;
   }
@@ -215,7 +220,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(drivers).where(eq(drivers.isOnline, true));
   }
 
-  async updateDriverStatus(userId: string, isOnline: boolean): Promise<Driver> {
+  async updateDriverOnlineStatus(userId: string, isOnline: boolean): Promise<Driver> {
     const [updatedDriver] = await db
       .update(drivers)
       .set({ isOnline })
@@ -225,7 +230,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Analytics
-  async getSystemStats(): Promise<{
+  async getAdminStats(): Promise<{
     totalUsers: number;
     activeVendors: number;
     activeDrivers: number;
@@ -233,17 +238,17 @@ export class DatabaseStorage implements IStorage {
   }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const [totalUsers] = await db.select({ count: count() }).from(users);
-    const [activeVendors] = await db.select({ count: count() }).from(vendors).where(eq(vendors.isActive, true));
-    const [activeDrivers] = await db.select({ count: count() }).from(drivers).where(eq(drivers.isOnline, true));
-    const [todayOrders] = await db.select({ count: count() }).from(orders).where(eq(orders.createdAt, today));
+    
+    const [userCount] = await db.select({ count: count() }).from(users);
+    const [vendorCount] = await db.select({ count: count() }).from(vendors).where(eq(vendors.isActive, true));
+    const [driverCount] = await db.select({ count: count() }).from(drivers).where(eq(drivers.isOnline, true));
+    const [orderCount] = await db.select({ count: count() }).from(orders);
 
     return {
-      totalUsers: totalUsers.count || 0,
-      activeVendors: activeVendors.count || 0,
-      activeDrivers: activeDrivers.count || 0,
-      todayOrders: todayOrders.count || 0,
+      totalUsers: userCount.count || 0,
+      activeVendors: vendorCount.count || 0,
+      activeDrivers: driverCount.count || 0,
+      todayOrders: orderCount.count || 0,
     };
   }
 }
