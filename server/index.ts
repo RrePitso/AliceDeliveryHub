@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { serveStatic, log } from "./vite"; // no setupVite here
+import { serveStatic, log } from "./vite"; // only serveStatic imported here
 
 const app = express();
 app.use(express.json());
@@ -47,11 +47,12 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Only import and setup vite in development mode dynamically
   if (app.get("env") === "development") {
+    // Dynamically import vite dev server setup ONLY in development
     const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
+    // Serve static built client files in production
     serveStatic(app);
   }
 
