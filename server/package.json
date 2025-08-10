@@ -24,7 +24,8 @@
     "passport-local": "^1.0.0",
     "ws": "^8.18.0",
     "zod": "^3.24.2",
-    "zod-validation-error": "^3.4.0"
+    "zod-validation-error": "^3.4.0",
+    "memoizee": "^0.4.17"
   },
   "devDependencies": {
     "@types/connect-pg-simple": "^7.0.3",
